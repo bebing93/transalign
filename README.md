@@ -12,8 +12,8 @@ pip install -e .
 
 ### Simple Label Project for BIO-scheme data
 
+1. Produce the pairwise word alignments
 ```bash
-# 1. Produce alignments 
 python TransAlign/align.py \
     sample_data/test-bam.txt \
     sample_data/test-translate-bam-en-preds.txt \
@@ -25,15 +25,19 @@ python TransAlign/align.py \
     --lora-path checkpoints/nllb-200-distilled-600M/ \
     --output-path "sample_data" \
     --output-file bam-en-alignments.txt
+```
 
-# 2. Project Labels
+2. Project the labels
+```bash
 python TransAlign/evaluation/project_labels.py \
     ./sample_data/test-translate-bam-en-preds.txt \
     ./sample_data/test-bam.txt \
     ./sample_data/bam-en-alignments.txt \
     ./sample_data/test-translate-bam-en-projected.txt
+```
 
-# 3. Evaluate
+3. Run evaluation
+```bash
 python TransAlign/evaluation/evaluate_bio.py \
     ./sample_data/test-translate-bam-en-projected.txt \
     ./sample_data/test-bam.txt \
