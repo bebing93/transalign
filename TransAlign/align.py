@@ -31,10 +31,15 @@ class NeurAligner(object):
         self.model = self.load_model(model_name, device)
 
         if lora_path is not None:
-            self.model = PeftModel.from_pretrained(self.model, lora_path)
+            print(f"Loading LoRA adapters from {lora_path}")
+            self.model = PeftModel.from_pretrained(
+                self.model,
+                lora_path,
+                is_trainable=False,  # Set to False for inference
+            )
             self.model.eval()
             self.model.to(device)
-            print(self.model)
+            print("LoRA model loaded successfully")
 
         # Load tokenizers
         self.tokenizer_lang1 = AutoTokenizer.from_pretrained(
