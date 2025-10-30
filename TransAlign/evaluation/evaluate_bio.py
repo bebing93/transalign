@@ -31,10 +31,14 @@ def evaluate_bio(
         F1 score as a float
     """
     logger.info(f"Loading predictions from {pred_file_path}")
-    pred_labels = load_data(pred_file_path, with_labels=True)
+    pred_data = load_data(pred_file_path, with_labels=True)
 
     logger.info(f"Loading true labels from {true_file_path}")
-    true_labels = load_data(true_file_path, with_labels=True)
+    true_data = load_data(true_file_path, with_labels=True)
+
+    # Extract just the labels (second element of each tuple)
+    pred_labels = [labels for tokens, labels in pred_data]
+    true_labels = [labels for tokens, labels in true_data]
 
     if len(pred_labels) != len(true_labels):
         raise ValueError(
