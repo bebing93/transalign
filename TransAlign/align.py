@@ -2,6 +2,7 @@
 
 import argparse
 import os
+import warnings
 import torch
 from tqdm import tqdm
 
@@ -13,11 +14,35 @@ from transformers import (
 from peft import PeftModel
 
 
+# Model-specific default configurations
+MODEL_DEFAULTS = {
+    "facebook/nllb-200-distilled-600M": {"layer": 12, "softmax": 0.001},
+    "sentence-transformers/LaBSE": {"layer": 6, "softmax": 0.1},
+    "google-bert/bert-base-multilingual-cased": {"layer": 8, "softmax": 0.001},
+}
+
+
+def get_model_defaults(model_name: str, use_defaults: bool = True):
+    """Get default layer and threshold for known models.
+
+    Args:
+        model_name: Model identifier
+        use_defaults: Whether to apply defaults
+
+    Returns:
+        Dictionary with 'layer' and 'softmax' keys, or empty dict if no defaults
+    """
+    if not use_defaults:
+        return {}
+
+    return MODEL_DEFAULTS.get(model_name, {})
+
+
 class NeurAligner(object):
 
     def __init__(
         self,
-        model_name: str = "bert-base-multilingual-cased",
+        model_name: str = "google-bert/bert-base-multilingual-cased",
         layer: int = 0,
         device=torch.device("cpu"),
         lang1: str = None,
@@ -147,8 +172,8 @@ if __name__ == "__main__":
     parser.add_argument(
         "--layer",
         type=int,
-        required=True,
-        help="Layer number to extract embeddings from (required)",
+        default=None,
+        help="Layer number to extract embeddings from. If not specified, model-specific defaults will be used for known models.",
     )
     parser.add_argument(
         "--lora-path",
@@ -175,8 +200,16 @@ if __name__ == "__main__":
     parser.add_argument(
         "--softmax",
         type=float,
+        default=None,
         metavar="THRESHOLD",
-        help="Use softmax-based alignment extraction with specified threshold (e.g., 0.001)",
+        help="Use softmax-based alignment extraction with specified threshold (e.g., 0.001). If not specified, model-specific defaults will be used for known models.",
+    )
+
+    # Default override flag
+    parser.add_argument(
+        "--no-defaults",
+        action="store_true",
+        help="Disable automatic application of model-specific defaults for layer and softmax threshold",
     )
 
     # Output configuration
@@ -200,6 +233,53 @@ if __name__ == "__main__":
     )
 
     args = parser.parse_args()
+
+    # Apply model-specific defaults if not disabled
+    model_defaults = get_model_defaults(
+        args.model_name, use_defaults=not args.no_defaults
+    )
+
+    # Track what was originally specified by user
+    user_specified_layer = args.layer is not None
+    user_specified_softmax = args.softmax is not None
+
+    # Apply defaults for layer if not specified
+    if not user_specified_layer and "layer" in model_defaults:
+        print(
+            f"Using default layer {model_defaults['layer']} for model {args.model_name}"
+        )
+        args.layer = model_defaults["layer"]
+    elif (
+        user_specified_layer
+        and "layer" in model_defaults
+        and args.layer != model_defaults["layer"]
+    ):
+        warnings.warn(
+            f"Using user-specified layer {args.layer} instead of recommended default {model_defaults['layer']} "
+            f"for model {args.model_name}. Use --no-defaults to suppress this warning."
+        )
+
+    # Apply defaults for softmax threshold if not specified
+    if not user_specified_softmax and "softmax" in model_defaults:
+        print(
+            f"Using default softmax threshold {model_defaults['softmax']} for model {args.model_name}"
+        )
+        args.softmax = model_defaults["softmax"]
+    elif (
+        user_specified_softmax
+        and "softmax" in model_defaults
+        and args.softmax != model_defaults["softmax"]
+    ):
+        warnings.warn(
+            f"Using user-specified softmax threshold {args.softmax} instead of recommended default {model_defaults['softmax']} "
+            f"for model {args.model_name}. Use --no-defaults to suppress this warning."
+        )
+
+    # Validate required parameters
+    if args.layer is None:
+        parser.error("--layer is required (no default available for this model)")
+    if args.softmax is None:
+        parser.error("--softmax is required (no default available for this model)")
 
     neuralign = NeurAligner(
         model_name=args.model_name,
